@@ -1,5 +1,5 @@
-use bevy::color::palettes::basic::RED;
-use bevy::color::palettes::css::{GREEN, YELLOW};
+use bevy::color::palettes::basic::{GRAY, RED};
+use bevy::color::palettes::css::{BROWN, GREEN, GREY, YELLOW};
 use bevy::prelude::*;
 
 pub struct GeneratorPlugin;
@@ -16,10 +16,20 @@ struct Generator {
 #[derive(Component)]
 struct Material2dHandle(Handle<ColorMaterial>);
 
+#[derive(Component)]
+struct PowerPole;
+
+#[derive(Component)]
+struct Light {
+    powered: bool,
+}
+
 impl Plugin for GeneratorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(FixedUpdate, (keyboard_input, tick_power));
+        app.add_systems(Startup, setup).add_systems(
+            Update,
+            (keyboard_input, tick_power, power_propagation_system),
+        );
     }
 }
 
@@ -28,22 +38,46 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let material_handle = materials.add(ColorMaterial::from_color(RED));
+    let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
+    let light_material_handle = materials.add(ColorMaterial::from_color(GREY));
     let burn_timer = Timer::from_seconds(1.0, TimerMode::Repeating);
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(50.0))),
-        Material2dHandle(material_handle.clone()),
-        MeshMaterial2d(material_handle),
+        Mesh2d(meshes.add(Triangle2d::new(
+            Vec2::Y * 15.0,
+            Vec2::new(-15.0, -15.0),
+            Vec2::new(15.0, -15.0),
+        ))),
+        Material2dHandle(gen_material_handle.clone()),
+        MeshMaterial2d(gen_material_handle),
         Transform::from_xyz(0.0, 50.0, 0.0),
         Generator {
             is_active: false,
-            fuel_amount: 100.0,
+            fuel_amount: 5.0,
             output: 2.0,
             max_output: 20.0,
             burn_timer,
         },
         Name::new("Generator"),
+    ));
+
+    // Power pole
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(10.0))),
+        MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
+        Transform::from_xyz(0.0, 0.0, 0.1),
+        PowerPole,
+        Name::new("PowerPole"),
+    ));
+
+    // Light
+    commands.spawn((
+        Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
+        Material2dHandle(light_material_handle.clone()),
+        MeshMaterial2d(light_material_handle),
+        Transform::from_xyz(0.0, -50.0, 0.2),
+        Light { powered: false },
+        Name::new("Light"),
     ));
 }
 
@@ -100,5 +134,59 @@ fn tick_power(
 fn keyboard_input(keyboard_input: Res<ButtonInput<KeyCode>>, mut app_exit: EventWriter<AppExit>) {
     if keyboard_input.just_pressed(KeyCode::Escape) {
         app_exit.write(AppExit::Success);
+    }
+}
+
+fn power_propagation_system(
+    generator_query: Query<(&Transform, &Generator)>,
+    pole_query: Query<&Transform, With<PowerPole>>,
+    mut light_query: Query<(&Transform, &mut Light, &Material2dHandle), With<Light>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    // Find the first active generator
+    for (gen_transform, generator) in generator_query.iter() {
+        if generator.is_active {
+            println!("Generator found!");
+            // Check if a power pole is directly connected (within range)
+            for pole_transform in pole_query.iter() {
+                let distance_to_pole = gen_transform
+                    .translation
+                    .distance(pole_transform.translation);
+
+                if distance_to_pole < 600.0 {
+                    println!("Pole found!");
+
+                    // If generator connects to pole, check for light below
+                    for (light_transform, mut light, handle) in light_query.iter_mut() {
+                        let distance_to_light = pole_transform
+                            .translation
+                            .distance(light_transform.translation);
+
+                        println!("Distance to light: {}", distance_to_light);
+
+                        if distance_to_light < 800.0 {
+                            println!("Light found!");
+
+                            light.powered = true;
+
+                            if let Some(mat) = materials.get_mut(&handle.0) {
+                                mat.color = Color::WHITE;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Turn off unpowered lights
+    for (_, mut light, handle) in light_query.iter_mut() {
+        if !light.powered {
+            if let Some(mat) = materials.get_mut(&handle.0) {
+                mat.color = Color::from(GRAY);
+            }
+        }
+        // Reset for next tick
+        light.powered = false;
     }
 }
