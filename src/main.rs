@@ -10,5 +10,11 @@ fn main() {
             ..default()
         }),
         ..default()
-    })).add_plugins(GeneratorPlugin).run();
+    })).add_plugins(GeneratorPlugin).add_systems(Startup,setup).run();
+}
+
+fn setup(
+    mut commands: Commands,
+){
+    commands.spawn(Camera2d);
 }
