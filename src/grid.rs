@@ -11,7 +11,7 @@ pub struct GridPlugin;
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, hover_mouse);
+            .add_systems(Update, (click_place_system));
     }
 }
 
@@ -26,6 +26,9 @@ struct Material2dHandle(Handle<ColorMaterial>);
 
 #[derive(Component)]
 struct Hoverable;
+
+#[derive(Component)]
+struct Placed; // Marker for something placed on a tile
 
 const TILE_SIZE: i32 = 16;
 const GRID_SIZE: i32 = 32;
@@ -103,5 +106,70 @@ fn hover_mouse(
         if let Some(mat) = materials.get_mut(&handle.0) {
             mat.color = color;
         }
+    }
+}
+
+fn click_place_system(
+    buttons: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform)>,
+    mut commands: Commands,
+    mut tiles: Query<(Entity, &GridPosition, &Material2dHandle, Option<&Placed>), With<Hoverable>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let Ok((camera, cam_transform)) = camera_q.single() else {
+        return;
+    };
+
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else {
+        return;
+    };
+
+    let world_pos = match camera.viewport_to_world_2d(cam_transform, cursor_pos) {
+        Ok(pos) => pos,
+        Err(_) => return,
+    };
+
+    let grid_x = (world_pos.x / TILE_SIZE as f32).round() as i32;
+    let grid_y = (world_pos.y / TILE_SIZE as f32).round() as i32;
+    let clicked_pos = GridPosition {
+        x: grid_x,
+        y: grid_y,
+    };
+
+    for (entity, tile_pos, mat_handle, maybe_placed) in tiles.iter_mut() {
+        if *tile_pos != clicked_pos {
+            continue;
+        }
+
+        match (
+            buttons.just_pressed(MouseButton::Right),
+            buttons.just_pressed(MouseButton::Left),
+        ) {
+            (true, false) => {
+                // Right-click to place something
+                if maybe_placed.is_none() {
+                    println!("Placing something on tile {:?}", tile_pos);
+                    commands.entity(entity).insert(Placed);
+                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                        mat.color = Color::from(YELLOW);
+                    }
+                }
+            }
+            (false, true) => {
+                // Left-click to remove
+                if maybe_placed.is_some() {
+                    println!("Removing something from tile {:?}", tile_pos);
+                    commands.entity(entity).remove::<Placed>();
+                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                        mat.color = Color::from(GREEN);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        break; // Only one tile can be affected at a time
     }
 }
