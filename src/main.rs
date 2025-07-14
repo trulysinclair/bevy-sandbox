@@ -1,8 +1,11 @@
 mod generator;
 mod grid;
+mod build_tool;
 
 use crate::grid::GridPlugin;
 use bevy::prelude::*;
+use crate::build_tool::BuildToolPlugin;
+use crate::generator::GeneratorPlugin;
 
 fn main() {
     App::new()
@@ -13,7 +16,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(GridPlugin)
+        .add_plugins((GeneratorPlugin, GridPlugin, BuildToolPlugin))
         .add_systems(Startup, setup)
         .run();
 }

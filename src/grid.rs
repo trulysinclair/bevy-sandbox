@@ -1,7 +1,10 @@
+use crate::build_tool::{BuildTool, TileContent};
+use crate::generator::{Generator, Light, PowerPole, tick_power};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
-use bevy::color::palettes::basic::YELLOW;
-use bevy::color::palettes::css::GREEN;
+use bevy::color::palettes::basic::{BLUE, GRAY, RED, YELLOW};
+use bevy::color::palettes::css::{BROWN, GREEN, GREY};
+use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
 use bevy::prelude::*;
 use bevy::sprite::{Material2d, MeshMaterial2d};
@@ -16,13 +19,13 @@ impl Plugin for GridPlugin {
 }
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct GridPosition {
-    x: i32,
-    y: i32,
+pub struct GridPosition {
+    pub(crate) x: i32,
+    pub(crate) y: i32,
 }
 
 #[derive(Component)]
-struct Material2dHandle(Handle<ColorMaterial>);
+pub struct Material2dHandle(pub(crate) Handle<ColorMaterial>);
 
 #[derive(Component)]
 struct Hoverable;
@@ -30,11 +33,16 @@ struct Hoverable;
 #[derive(Component)]
 struct Placed; // Marker for something placed on a tile
 
+#[derive(Component)]
+struct Tile {
+    content: Option<Entity>, // child or placed thing
+}
+
 const TILE_SIZE: i32 = 16;
 const GRID_SIZE: i32 = 32;
 const SPACING: i32 = 2;
 
-fn grid_to_world(pos: GridPosition) -> Vec3 {
+pub fn grid_to_world(pos: GridPosition) -> Vec3 {
     Vec3::new((pos.x * TILE_SIZE) as f32, (pos.y * TILE_SIZE) as f32, 0.0)
 }
 
@@ -53,7 +61,7 @@ fn setup(
                 y: y - (tile_half * 2),
             };
 
-            let cell_material_handle = materials.add(ColorMaterial::from_color(GREEN));
+            let cell_material_handle = materials.add(ColorMaterial::from_color(NEUTRAL_700));
             let cell_mesh_handle = meshes.add(Rectangle::new(TILE_SIZE as f32, TILE_SIZE as f32));
 
             commands.spawn((
@@ -63,6 +71,7 @@ fn setup(
                 Transform::from_translation(grid_to_world(position)),
                 Hoverable,
                 position,
+                Tile { content: None },
             ));
         }
     }
@@ -113,19 +122,28 @@ fn click_place_system(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
+    tool: Res<BuildTool>,
     mut commands: Commands,
-    mut tiles: Query<(Entity, &GridPosition, &Material2dHandle, Option<&Placed>), With<Hoverable>>,
+    mut tiles: Query<
+        (
+            Entity,
+            &GridPosition,
+            &Material2dHandle,
+            &mut Tile,
+            Option<&TileContent>,
+        ),
+        With<Hoverable>,
+    >,
+    meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let Ok((camera, cam_transform)) = camera_q.single() else {
         return;
     };
-
     let Ok(window) = windows.single() else { return };
     let Some(cursor_pos) = window.cursor_position() else {
         return;
     };
-
     let world_pos = match camera.viewport_to_world_2d(cam_transform, cursor_pos) {
         Ok(pos) => pos,
         Err(_) => return,
@@ -138,38 +156,134 @@ fn click_place_system(
         y: grid_y,
     };
 
-    for (entity, tile_pos, mat_handle, maybe_placed) in tiles.iter_mut() {
+    for (tile_entity, tile_pos, mat_handle, tile, existing) in tiles.iter_mut() {
         if *tile_pos != clicked_pos {
             continue;
         }
 
-        match (
-            buttons.just_pressed(MouseButton::Right),
-            buttons.just_pressed(MouseButton::Left),
-        ) {
-            (true, false) => {
-                // Right-click to place something
-                if maybe_placed.is_none() {
-                    println!("Placing something on tile {:?}", tile_pos);
-                    commands.entity(entity).insert(Placed);
-                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
-                        mat.color = Color::from(YELLOW);
-                    }
-                }
-            }
-            (false, true) => {
-                // Left-click to remove
-                if maybe_placed.is_some() {
-                    println!("Removing something from tile {:?}", tile_pos);
-                    commands.entity(entity).remove::<Placed>();
+        if buttons.just_pressed(MouseButton::Right) && existing.is_none() {
+            println!("Placing tile at {:?}", tile_pos);
+
+            match *tool {
+                BuildTool::Generator => {
+                    let generator =
+                        spawn_generator(&mut commands, *tile_pos, meshes, &mut materials);
+                    commands.entity(tile_entity).insert(TileContent::Generator);
+                    commands.entity(tile_entity).insert(Tile {
+                        content: Some(generator),
+                    });
+
                     if let Some(mat) = materials.get_mut(&mat_handle.0) {
                         mat.color = Color::from(GREEN);
                     }
                 }
-            }
-            _ => {}
+                BuildTool::PowerPole => {
+                    let pole = spawn_power_pole(&mut commands, *tile_pos, meshes, &mut materials);
+                    commands.entity(tile_entity).insert(TileContent::PowerPole);
+                    commands.entity(tile_entity).insert(Tile {
+                        content: Some(pole),
+                    });
+                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                        mat.color = Color::from(BLUE);
+                    }
+                }
+                BuildTool::Light => {
+                    let light = spawn_light(&mut commands, *tile_pos, meshes, &mut materials);
+                    commands.entity(tile_entity).insert(TileContent::Light);
+                    commands.entity(tile_entity).insert(Tile {
+                        content: Some(light),
+                    });
+                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                        mat.color = Color::WHITE;
+                    }
+                }
+            };
         }
 
-        break; // Only one tile can be affected at a time
+        if buttons.just_pressed(MouseButton::Left) && existing.is_some() {
+            println!("Removing tile at {:?}", tile_pos);
+            if let Some(child_ent) = tile.content {
+                commands.entity(child_ent).despawn();
+            }
+            commands
+                .entity(tile_entity)
+                .remove::<TileContent>()
+                .insert(Tile { content: None });
+
+            if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                mat.color = Color::from(GRAY);
+            }
+        }
+
+        break;
     }
+}
+
+fn spawn_generator(
+    commands: &mut Commands,
+    pos: GridPosition,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
+    let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
+    commands
+        .spawn((
+            Name::new("Generator"),
+            Generator {
+                is_active: false,
+                fuel_amount: 20.0,
+                output: 0.0,
+                max_output: 20.0,
+                burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+            },
+            Mesh2d(meshes.add(Triangle2d::new(
+                Vec2::Y * 15.0,
+                Vec2::new(-15.0, -15.0),
+                Vec2::new(15.0, -15.0),
+            ))),
+            Material2dHandle(gen_material_handle.clone()),
+            MeshMaterial2d(gen_material_handle.clone()),
+            Transform::from_translation(grid_to_world(pos) + Vec3::Z), // Render above tile
+            pos,
+        ))
+        .id()
+}
+
+fn spawn_power_pole(
+    commands: &mut Commands,
+    pos: GridPosition,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
+    commands
+        .spawn((
+            Name::new("PowerPole"),
+            PowerPole,
+            Mesh2d(meshes.add(Circle::new(10.0))),
+            MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
+            Transform::from_translation(grid_to_world(pos) + Vec3::Z),
+            pos,
+        ))
+        .id()
+}
+
+fn spawn_light(
+    commands: &mut Commands,
+    pos: GridPosition,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
+    let light_material_handle = materials.add(ColorMaterial::from_color(GREY));
+
+    commands
+        .spawn((
+            Name::new("Light"),
+            Light { powered: false },
+            Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
+            Material2dHandle(light_material_handle.clone()),
+            MeshMaterial2d(light_material_handle.clone()),
+            Transform::from_translation(grid_to_world(pos) + Vec3::Z),
+            pos,
+        ))
+        .id()
 }
