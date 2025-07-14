@@ -24,6 +24,22 @@ struct Light {
     powered: bool,
 }
 
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct GridPosition {
+    x: i32,
+    y: i32,
+}
+
+const TILE_SIZE: f32 = 64.0;
+
+fn grid_to_world(pos: GridPosition) -> Vec3 {
+    Vec3::new(
+        pos.x as f32 * TILE_SIZE,
+        pos.y as f32 * TILE_SIZE,
+        0.0,
+    )
+}
+
 impl Plugin for GeneratorPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup).add_systems(
@@ -41,6 +57,10 @@ fn setup(
     let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
     let light_material_handle = materials.add(ColorMaterial::from_color(GREY));
     let burn_timer = Timer::from_seconds(1.0, TimerMode::Repeating);
+    // Positions
+    let generator_pos = GridPosition { x: 1, y: 0 };
+    let pole_pos = GridPosition { x: 0, y: 0 };
+    let light_pos = GridPosition { x: -1, y: 0 };
 
     commands.spawn((
         Mesh2d(meshes.add(Triangle2d::new(
@@ -50,7 +70,7 @@ fn setup(
         ))),
         Material2dHandle(gen_material_handle.clone()),
         MeshMaterial2d(gen_material_handle),
-        Transform::from_xyz(0.0, 50.0, 0.0),
+        Transform::from_translation(grid_to_world(generator_pos)),
         Generator {
             is_active: false,
             fuel_amount: 5.0,
@@ -59,15 +79,17 @@ fn setup(
             burn_timer,
         },
         Name::new("Generator"),
+        generator_pos
     ));
 
     // Power pole
     commands.spawn((
         Mesh2d(meshes.add(Circle::new(10.0))),
         MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
-        Transform::from_xyz(0.0, 0.0, 0.1),
+        Transform::from_translation(grid_to_world(pole_pos)),
         PowerPole,
         Name::new("PowerPole"),
+        pole_pos
     ));
 
     // Light
@@ -75,9 +97,10 @@ fn setup(
         Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
         Material2dHandle(light_material_handle.clone()),
         MeshMaterial2d(light_material_handle),
-        Transform::from_xyz(0.0, -50.0, 0.2),
+        Transform::from_translation(grid_to_world(light_pos)),
         Light { powered: false },
         Name::new("Light"),
+        light_pos
     ));
 }
 
@@ -138,37 +161,21 @@ fn keyboard_input(keyboard_input: Res<ButtonInput<KeyCode>>, mut app_exit: Event
 }
 
 fn power_propagation_system(
-    generator_query: Query<(&Transform, &Generator)>,
-    pole_query: Query<&Transform, With<PowerPole>>,
-    mut light_query: Query<(&Transform, &mut Light, &Material2dHandle), With<Light>>,
+    generator_query: Query<(&GridPosition, &Generator)>,
+    pole_query: Query<&GridPosition, With<PowerPole>>,
+    mut light_query: Query<(&GridPosition, &mut Light, &Material2dHandle), With<Light>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // Find the first active generator
-    for (gen_transform, generator) in generator_query.iter() {
+    for (gen_pos, generator) in generator_query.iter() {
         if generator.is_active {
-            println!("Generator found!");
-            // Check if a power pole is directly connected (within range)
-            for pole_transform in pole_query.iter() {
-                let distance_to_pole = gen_transform
-                    .translation
-                    .distance(pole_transform.translation);
-
-                if distance_to_pole < 600.0 {
-                    println!("Pole found!");
-
-                    // If generator connects to pole, check for light below
-                    for (light_transform, mut light, handle) in light_query.iter_mut() {
-                        let distance_to_light = pole_transform
-                            .translation
-                            .distance(light_transform.translation);
-
-                        println!("Distance to light: {}", distance_to_light);
-
-                        if distance_to_light < 800.0 {
-                            println!("Light found!");
-
+            for pole_pos in pole_query.iter() {
+                if gen_pos == &(GridPosition { x: pole_pos.x + 1, y: pole_pos.y }) {
+                    // Generator is directly above pole
+                    for (light_pos, mut light, handle) in light_query.iter_mut() {
+                        if *pole_pos == (GridPosition { x: light_pos.x + 1, y: 0 }) {
+                            // Pole is directly above light
                             light.powered = true;
-
                             if let Some(mat) = materials.get_mut(&handle.0) {
                                 mat.color = Color::WHITE;
                             }
