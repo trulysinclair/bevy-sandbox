@@ -21,6 +21,7 @@ struct GridPosition {
 
 const TILE_SIZE: i32 = 16;
 const GRID_SIZE: i32 = 32;
+const SPACING: i32 = 2;
 
 fn grid_to_world(pos: GridPosition) -> Vec3 {
     Vec3::new((pos.x * TILE_SIZE) as f32, (pos.y * TILE_SIZE) as f32, 0.0)
@@ -31,15 +32,15 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for x in 0..GRID_SIZE {
-        if (x / 2) % 2 == 0 {
-            continue;
-        }
+    let tiles_per_axis = GRID_SIZE / SPACING;
+    let tile_half = tiles_per_axis / 2;
 
-        for y in 0..GRID_SIZE {
-            if (y / 2) % 2 == 0 {
-                continue;
-            }
+    for x in (0..GRID_SIZE).step_by(SPACING as usize) {
+        for y in (0..GRID_SIZE).step_by(SPACING as usize) {
+            let position = GridPosition {
+                x: x - (tile_half * 2),
+                y: y - (tile_half * 2),
+            };
 
             let cell_material_handle = materials.add(ColorMaterial::from_color(GREEN));
             let cell_mesh_handle = meshes.add(Rectangle::new(TILE_SIZE as f32, TILE_SIZE as f32));
@@ -47,10 +48,8 @@ fn setup(
             commands.spawn((
                 Mesh2d(cell_mesh_handle.clone()),
                 MeshMaterial2d(cell_material_handle.clone()),
-                Transform::from_translation(grid_to_world(GridPosition {
-                    x: x - 10,
-                    y: y - 10,
-                })),
+                Transform::from_translation(grid_to_world(position)),
+                position,
             ));
         }
     }
