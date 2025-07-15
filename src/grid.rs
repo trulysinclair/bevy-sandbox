@@ -2,7 +2,7 @@ use crate::build_tool::{BuildTool, TileContent};
 use crate::items::{generator, light, power_pole};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
-use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, YELLOW};
+use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, WHITE};
 use bevy::color::palettes::css::GREEN;
 use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
@@ -14,7 +14,7 @@ pub struct GridPlugin;
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (click_place_system));
+            .add_systems(Update, (click_place_system, hover_mouse));
     }
 }
 
@@ -32,6 +32,9 @@ struct Hoverable;
 
 #[derive(Component)]
 struct Placed; // Marker for something placed on a tile
+
+#[derive(Component)]
+struct HoverBorder; // Marker for hover border entities
 
 #[derive(Component)]
 struct Tile {
@@ -115,11 +118,19 @@ fn setup(
 }
 
 fn hover_mouse(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
-    mut tiles: Query<(&GridPosition, &Material2dHandle), With<Hoverable>>,
+    tiles: Query<&GridPosition, With<Hoverable>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    hover_borders: Query<Entity, With<HoverBorder>>,
 ) {
+    // First, despawn all existing hover borders
+    for entity in hover_borders.iter() {
+        commands.entity(entity).despawn();
+    }
+
     let Ok((camera, camera_transform)) = camera.single() else {
         return;
     };
@@ -142,16 +153,46 @@ fn hover_mouse(
         y: grid_y,
     };
 
-    for (position, handle) in tiles.iter_mut() {
-        let color = if *position == hovered_tile {
-            Color::from(YELLOW)
-        } else {
-            Color::from(GREEN)
-        };
+    // Check if we're hovering over a valid tile
+    let is_hovering_valid_tile = tiles.iter().any(|pos| *pos == hovered_tile);
+    
+    if is_hovering_valid_tile {
+        let border_material_handle = materials.add(ColorMaterial::from_color(WHITE));
+        let tile_pos = grid_to_world(hovered_tile);
+        let half_tile = TILE_SIZE as f32 / 2.0;
 
-        if let Some(mat) = materials.get_mut(&handle.0) {
-            mat.color = color;
-        }
+        // Create 4 border lines (top, bottom, left, right)
+        // Top border
+        commands.spawn((
+            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(tile_pos + Vec3::new(0.0, half_tile, 0.1)),
+            HoverBorder,
+        ));
+
+        // Bottom border
+        commands.spawn((
+            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(tile_pos + Vec3::new(0.0, -half_tile, 0.1)),
+            HoverBorder,
+        ));
+
+        // Left border
+        commands.spawn((
+            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(tile_pos + Vec3::new(-half_tile, 0.0, 0.1)),
+            HoverBorder,
+        ));
+
+        // Right border
+        commands.spawn((
+            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+            MeshMaterial2d(border_material_handle),
+            Transform::from_translation(tile_pos + Vec3::new(half_tile, 0.0, 0.1)),
+            HoverBorder,
+        ));
     }
 }
 
