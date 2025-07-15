@@ -1,3 +1,4 @@
+use crate::ui::MainText;
 use bevy::prelude::*;
 
 pub struct BuildToolPlugin;
@@ -23,19 +24,28 @@ pub enum TileContent {
     Light,
 }
 
-fn build_tool_selector(keys: Res<ButtonInput<KeyCode>>, mut build_tool: ResMut<BuildTool>) {
-    if keys.just_pressed(KeyCode::Digit1) {
-        *build_tool = BuildTool::Generator;
-        println!("BuildTool: Generator");
-    }
+fn build_tool_selector(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut build_tool: ResMut<BuildTool>,
+    mut text: Query<&mut Text, With<MainText>>,
+) {
+    for mut t in text.iter_mut() {
+        if keys.just_pressed(KeyCode::Digit1) {
+            *build_tool = BuildTool::Generator;
 
-    if keys.just_pressed(KeyCode::Digit2) {
-        *build_tool = BuildTool::PowerPole;
-        println!("BuildTool: PowerPole");
-    }
+            **t = "Generator".into();
+        }
 
-    if keys.just_pressed(KeyCode::Digit3) {
-        *build_tool = BuildTool::Light;
-        println!("BuildTool: Light");
+        if keys.just_pressed(KeyCode::Digit2) {
+            *build_tool = BuildTool::PowerPole;
+
+            **t = "Power Pole".into();
+        }
+
+        if keys.just_pressed(KeyCode::Digit3) {
+            *build_tool = BuildTool::Light;
+
+            **t = "Light".into();
+        }
     }
 }

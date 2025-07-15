@@ -2,7 +2,7 @@ use crate::build_tool::{BuildTool, TileContent};
 use crate::generator::{Generator, Light, PowerPole, tick_power};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
-use bevy::color::palettes::basic::{BLUE, GRAY, RED, YELLOW};
+use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, RED, YELLOW};
 use bevy::color::palettes::css::{BROWN, GREEN, GREY};
 use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
@@ -54,16 +54,17 @@ fn setup(
     let tiles_per_axis = GRID_SIZE / SPACING;
     let tile_half = tiles_per_axis / 2;
 
-    for x in (0..GRID_SIZE).step_by(SPACING as usize) {
-        for y in (0..GRID_SIZE).step_by(SPACING as usize) {
+    for x in (0..GRID_SIZE) {
+        for y in (0..GRID_SIZE) {
             let position = GridPosition {
                 x: x - (tile_half * 2),
                 y: y - (tile_half * 2),
             };
 
             let cell_material_handle = materials.add(ColorMaterial::from_color(NEUTRAL_700));
-            let cell_mesh_handle = meshes.add(Rectangle::new(TILE_SIZE as f32, TILE_SIZE as f32));
+            let cell_mesh_handle = meshes.add(Rectangle::new(TILE_SIZE as f32 - 1.0, TILE_SIZE as f32 - 1.0));
 
+            // Spawn tile
             commands.spawn((
                 Mesh2d(cell_mesh_handle.clone()),
                 Material2dHandle(cell_material_handle.clone()),
@@ -72,6 +73,39 @@ fn setup(
                 Hoverable,
                 position,
                 Tile { content: None },
+            ));
+            
+            let border_material_handle = materials.add(ColorMaterial::from_color(BLACK));
+            let tile_pos = grid_to_world(position);
+            let half_tile = TILE_SIZE as f32 / 2.0;
+            
+            // Create 4 border lines (top, bottom, left, right)
+            // Top border
+            commands.spawn((
+                Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+                MeshMaterial2d(border_material_handle.clone()),
+                Transform::from_translation(tile_pos + Vec3::new(0.0, half_tile, 0.1)),
+            ));
+            
+            // Bottom border
+            commands.spawn((
+                Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+                MeshMaterial2d(border_material_handle.clone()),
+                Transform::from_translation(tile_pos + Vec3::new(0.0, -half_tile, 0.1)),
+            ));
+            
+            // Left border
+            commands.spawn((
+                Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+                MeshMaterial2d(border_material_handle.clone()),
+                Transform::from_translation(tile_pos + Vec3::new(-half_tile, 0.0, 0.1)),
+            ));
+            
+            // Right border
+            commands.spawn((
+                Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+                MeshMaterial2d(border_material_handle),
+                Transform::from_translation(tile_pos + Vec3::new(half_tile, 0.0, 0.1)),
             ));
         }
     }
@@ -231,7 +265,7 @@ fn spawn_generator(
             Name::new("Generator"),
             Generator {
                 is_active: false,
-                fuel_amount: 20.0,
+                fuel_amount: 5.0,
                 output: 0.0,
                 max_output: 20.0,
                 burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
