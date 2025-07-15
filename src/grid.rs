@@ -1,5 +1,6 @@
 use crate::build_tool::{BuildTool, TileContent};
 use crate::items::{generator, light, power_pole};
+use crate::wire_system::{ConnectionPoint, Wire, WireState};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
 use bevy::color::palettes::basic::{BLACK, WHITE};
@@ -13,6 +14,7 @@ pub struct GridPlugin;
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HoverState>()
+            .init_resource::<WireState>()
             .add_systems(Startup, (setup, setup_hover_borders))
             .add_systems(Update, (click_place_system, hover_mouse));
     }
@@ -310,6 +312,9 @@ fn click_place_system(
     >,
     meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut wire_state: ResMut<WireState>,
+    mut connection_points: Query<&mut ConnectionPoint>,
+    items: Query<(Entity, &GridPosition), With<ConnectionPoint>>,
 ) {
     let Ok((camera, cam_transform)) = camera_q.single() else {
         return;
@@ -335,44 +340,68 @@ fn click_place_system(
             continue;
         }
 
-        if buttons.just_pressed(MouseButton::Right) && existing.is_none() {
+        if buttons.just_pressed(MouseButton::Right) {
             match *tool {
-                BuildTool::Generator => {
-                    let generator = generator::spawn_generator(
-                        &mut commands,
-                        *tile_pos,
-                        meshes,
-                        &mut materials,
-                    );
-
-                    commands.entity(tile_entity).insert(TileContent::Generator);
-                    commands.entity(tile_entity).insert(Tile {
-                        content: Some(generator),
-                    });
+                BuildTool::Wire => {
+                    // Wire placement logic
+                    if let Some(item_entity) = find_item_at_position(*tile_pos, &items) {
+                        handle_wire_placement(
+                            item_entity,
+                            *tile_pos,
+                            &mut wire_state,
+                            &mut connection_points,
+                            &mut commands,
+                            &mut materials,
+                        );
+                    }
                 }
-                BuildTool::PowerPole => {
-                    let pole = power_pole::spawn_power_pole(
-                        &mut commands,
-                        *tile_pos,
-                        meshes,
-                        &mut materials,
-                    );
+                _ if existing.is_none() => {
+                    // Regular item placement
+                    match *tool {
+                        BuildTool::Generator => {
+                            let generator = generator::spawn_generator(
+                                &mut commands,
+                                *tile_pos,
+                                meshes,
+                                &mut materials,
+                            );
 
-                    commands.entity(tile_entity).insert(TileContent::PowerPole);
-                    commands.entity(tile_entity).insert(Tile {
-                        content: Some(pole),
-                    });
-                }
-                BuildTool::Light => {
-                    let light =
-                        light::spawn_light(&mut commands, *tile_pos, meshes, &mut materials);
+                            commands.entity(tile_entity).insert(TileContent::Generator);
+                            commands.entity(tile_entity).insert(Tile {
+                                content: Some(generator),
+                            });
+                        }
+                        BuildTool::PowerPole => {
+                            let pole = power_pole::spawn_power_pole(
+                                &mut commands,
+                                *tile_pos,
+                                meshes,
+                                &mut materials,
+                            );
 
-                    commands.entity(tile_entity).insert(TileContent::Light);
-                    commands.entity(tile_entity).insert(Tile {
-                        content: Some(light),
-                    });
+                            commands.entity(tile_entity).insert(TileContent::PowerPole);
+                            commands.entity(tile_entity).insert(Tile {
+                                content: Some(pole),
+                            });
+                        }
+                        BuildTool::Light => {
+                            let light = light::spawn_light(
+                                &mut commands,
+                                *tile_pos,
+                                meshes,
+                                &mut materials,
+                            );
+
+                            commands.entity(tile_entity).insert(TileContent::Light);
+                            commands.entity(tile_entity).insert(Tile {
+                                content: Some(light),
+                            });
+                        }
+                        BuildTool::Wire => {}
+                    }
                 }
-            };
+                _ => {}
+            }
         }
 
         if buttons.just_pressed(MouseButton::Left) && existing.is_some() {
@@ -388,4 +417,88 @@ fn click_place_system(
 
         break;
     }
+}
+
+fn find_item_at_position(
+    pos: GridPosition,
+    items: &Query<(Entity, &GridPosition), With<ConnectionPoint>>,
+) -> Option<Entity> {
+    for (entity, item_pos) in items.iter() {
+        if *item_pos == pos {
+            return Some(entity);
+        }
+    }
+    None
+}
+
+fn handle_wire_placement(
+    item_entity: Entity,
+    pos: GridPosition,
+    wire_state: &mut ResMut<WireState>,
+    connection_points: &mut Query<&mut ConnectionPoint>,
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) {
+    if let Some(selected) = wire_state.selected_connection {
+        // Second click - try to create wire
+        if selected != item_entity {
+            if can_connect(selected, item_entity, connection_points) {
+                // For now, we'll skip position validation since we need to store positions
+                create_wire(selected, item_entity, connection_points, commands, materials);
+            }
+        }
+        wire_state.selected_connection = None;
+    } else {
+        // First click - select connection point
+        if let Ok(connection_point) = connection_points.get(item_entity) {
+            if connection_point.can_connect() {
+                wire_state.selected_connection = Some(item_entity);
+                println!("Selected connection point at {:?}", pos);
+            }
+        }
+    }
+}
+
+fn can_connect(
+    from: Entity,
+    to: Entity,
+    connection_points: &mut Query<&mut ConnectionPoint>,
+) -> bool {
+    if let (Ok(from_conn), Ok(to_conn)) = (connection_points.get(from), connection_points.get(to)) {
+        from_conn.can_connect() && to_conn.can_connect()
+    } else {
+        false
+    }
+}
+
+fn is_within_range(from: GridPosition, to: GridPosition, max_range: i32) -> bool {
+    let dx = (to.x - from.x).abs();
+    let dy = (to.y - from.y).abs();
+    dx <= max_range && dy <= max_range
+}
+
+fn create_wire(
+    from: Entity,
+    to: Entity,
+    connection_points: &mut Query<&mut ConnectionPoint>,
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) {
+    let wire_entity = commands
+        .spawn((
+            Wire { from, to },
+            Name::new("Wire"),
+            // TODO: Add visual representation
+        ))
+        .id();
+
+    // Add wire to connection points
+    if let Ok(mut from_conn) = connection_points.get_mut(from) {
+        from_conn.add_connection(wire_entity);
+    }
+    if let Ok(mut to_conn) = connection_points.get_mut(to) {
+        to_conn.add_connection(wire_entity);
+    }
+
+    println!("Created wire between {:?} and {:?}", from, to);
 }

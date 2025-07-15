@@ -2,11 +2,13 @@ mod build_tool;
 mod grid;
 mod items;
 mod ui;
+mod wire_system;
 
 use crate::build_tool::BuildToolPlugin;
 use crate::grid::GridPlugin;
 use crate::items::ItemsPlugin;
 use crate::ui::UiPlugin;
+use crate::wire_system::WireSystemPlugin;
 use bevy::prelude::*;
 
 fn main() {
@@ -19,7 +21,7 @@ fn main() {
             ..default()
         }))
         .add_plugins((ItemsPlugin))
-        .add_plugins((GridPlugin, BuildToolPlugin))
+        .add_plugins((GridPlugin, BuildToolPlugin, WireSystemPlugin))
         .add_plugins(UiPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, keyboard_input)

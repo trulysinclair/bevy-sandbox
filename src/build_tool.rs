@@ -15,6 +15,7 @@ pub enum BuildTool {
     Generator,
     PowerPole,
     Light,
+    Wire,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -46,6 +47,12 @@ fn build_tool_selector(
             *build_tool = BuildTool::Light;
 
             **t = "Light".into();
+        }
+
+        if keys.just_pressed(KeyCode::Digit4) {
+            *build_tool = BuildTool::Wire;
+
+            **t = "Wire".into();
         }
     }
 }

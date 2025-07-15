@@ -1,5 +1,6 @@
 use crate::grid;
 use crate::grid::{GridPosition, Material2dHandle};
+use crate::wire_system::{ConnectionPoint, PowerSource};
 use bevy::color::palettes::basic::{GREEN, RED};
 use bevy::prelude::*;
 
@@ -98,6 +99,8 @@ pub fn spawn_generator(
             MeshMaterial2d(gen_material_handle.clone()),
             Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z), // Render above tile
             pos,
+            ConnectionPoint::new(1), // Single connection point
+            PowerSource::default(),  // Generators are power sources
         ))
         .id()
 }

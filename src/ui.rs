@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::build_tool::BuildTool;
+use bevy::prelude::*;
 
 pub struct UiPlugin;
 
@@ -16,7 +16,9 @@ fn setup(mut commands: Commands, tool: Res<BuildTool>) {
     let text: &str = match *tool {
         BuildTool::Generator => "Generator".into(),
         BuildTool::PowerPole => "Power Pole".into(),
-        BuildTool::Light => "Light".into()
+        BuildTool::Light => "Light".into(),
+        // Invitation for hijacking by mods, find better system
+        _ => "None".into(),
     };
 
     commands.spawn((
