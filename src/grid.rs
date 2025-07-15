@@ -13,8 +13,9 @@ pub struct GridPlugin;
 
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(Update, (click_place_system, hover_mouse));
+        app.add_systems(Startup, (setup, setup_hover_borders))
+            .add_systems(Update, (click_place_system))
+            .add_systems(FixedUpdate, hover_mouse);
     }
 }
 
@@ -35,6 +36,14 @@ struct Placed; // Marker for something placed on a tile
 
 #[derive(Component)]
 struct HoverBorder; // Marker for hover border entities
+
+#[derive(Resource)]
+struct HoverBorderEntities {
+    top: Entity,
+    bottom: Entity,
+    left: Entity,
+    right: Entity,
+}
 
 #[derive(Component)]
 struct Tile {
@@ -117,20 +126,70 @@ fn setup(
     }
 }
 
-fn hover_mouse(
+fn setup_hover_borders(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let border_material_handle = materials.add(ColorMaterial::from_color(WHITE));
+
+    // Create 4 persistent border entities, initially hidden
+    let top = commands
+        .spawn((
+            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            Visibility::Hidden,
+            HoverBorder,
+        ))
+        .id();
+
+    let bottom = commands
+        .spawn((
+            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            Visibility::Hidden,
+            HoverBorder,
+        ))
+        .id();
+
+    let left = commands
+        .spawn((
+            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+            MeshMaterial2d(border_material_handle.clone()),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            Visibility::Hidden,
+            HoverBorder,
+        ))
+        .id();
+
+    let right = commands
+        .spawn((
+            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
+            MeshMaterial2d(border_material_handle),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            Visibility::Hidden,
+            HoverBorder,
+        ))
+        .id();
+
+    commands.insert_resource(HoverBorderEntities {
+        top,
+        bottom,
+        left,
+        right,
+    });
+}
+
+fn hover_mouse(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     tiles: Query<&GridPosition, With<Hoverable>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    hover_borders: Query<Entity, With<HoverBorder>>,
+    hover_entities: Res<HoverBorderEntities>,
+    mut transforms: Query<&mut Transform>,
+    mut visibility: Query<&mut Visibility>,
 ) {
-    // First, despawn all existing hover borders
-    for entity in hover_borders.iter() {
-        commands.entity(entity).despawn();
-    }
-
     let Ok((camera, camera_transform)) = camera.single() else {
         return;
     };
@@ -139,6 +198,19 @@ fn hover_mouse(
         return;
     };
     let Some(cursor_position) = window.cursor_position() else {
+        // Hide borders when cursor is not in window
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.bottom) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.left) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.right) {
+            *vis = Visibility::Hidden;
+        }
         return;
     };
 
@@ -155,44 +227,53 @@ fn hover_mouse(
 
     // Check if we're hovering over a valid tile
     let is_hovering_valid_tile = tiles.iter().any(|pos| *pos == hovered_tile);
-    
+
     if is_hovering_valid_tile {
-        let border_material_handle = materials.add(ColorMaterial::from_color(WHITE));
         let tile_pos = grid_to_world(hovered_tile);
         let half_tile = TILE_SIZE as f32 / 2.0;
 
-        // Create 4 border lines (top, bottom, left, right)
-        // Top border
-        commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
-            MeshMaterial2d(border_material_handle.clone()),
-            Transform::from_translation(tile_pos + Vec3::new(0.0, half_tile, 0.1)),
-            HoverBorder,
-        ));
+        // Update positions and show borders
+        if let Ok(mut transform) = transforms.get_mut(hover_entities.top) {
+            transform.translation = tile_pos + Vec3::new(0.0, half_tile, 0.1);
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
+            *vis = Visibility::Visible;
+        }
 
-        // Bottom border
-        commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
-            MeshMaterial2d(border_material_handle.clone()),
-            Transform::from_translation(tile_pos + Vec3::new(0.0, -half_tile, 0.1)),
-            HoverBorder,
-        ));
+        if let Ok(mut transform) = transforms.get_mut(hover_entities.bottom) {
+            transform.translation = tile_pos + Vec3::new(0.0, -half_tile, 0.1);
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.bottom) {
+            *vis = Visibility::Visible;
+        }
 
-        // Left border
-        commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
-            MeshMaterial2d(border_material_handle.clone()),
-            Transform::from_translation(tile_pos + Vec3::new(-half_tile, 0.0, 0.1)),
-            HoverBorder,
-        ));
+        if let Ok(mut transform) = transforms.get_mut(hover_entities.left) {
+            transform.translation = tile_pos + Vec3::new(-half_tile, 0.0, 0.1);
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.left) {
+            *vis = Visibility::Visible;
+        }
 
-        // Right border
-        commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
-            MeshMaterial2d(border_material_handle),
-            Transform::from_translation(tile_pos + Vec3::new(half_tile, 0.0, 0.1)),
-            HoverBorder,
-        ));
+        if let Ok(mut transform) = transforms.get_mut(hover_entities.right) {
+            transform.translation = tile_pos + Vec3::new(half_tile, 0.0, 0.1);
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.right) {
+            *vis = Visibility::Visible;
+        }
+    } else {
+        // Hide borders when not hovering over a valid tile
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.bottom) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.left) {
+            *vis = Visibility::Hidden;
+        }
+        if let Ok(mut vis) = visibility.get_mut(hover_entities.right) {
+            *vis = Visibility::Hidden;
+        }
     }
 }
 
