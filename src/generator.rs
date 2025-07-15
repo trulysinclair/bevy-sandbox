@@ -37,61 +37,6 @@ impl Plugin for GeneratorPlugin {
     }
 }
 
-// fn setup(
-//     mut commands: Commands,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-// ) {
-//     let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
-//     let light_material_handle = materials.add(ColorMaterial::from_color(GREY));
-//     let burn_timer = Timer::from_seconds(1.0, TimerMode::Repeating);
-//     // Positions
-//     let generator_pos = GridPosition { x: 1, y: 0 };
-//     let pole_pos = GridPosition { x: 0, y: 0 };
-//     let light_pos = GridPosition { x: -1, y: 0 };
-//
-//     commands.spawn((
-//         Name::new("Generator"),
-//         Generator {
-//             is_active: false,
-//             fuel_amount: 5.0,
-//             output: 2.0,
-//             max_output: 20.0,
-//             burn_timer,
-//         },
-//         Mesh2d(meshes.add(Triangle2d::new(
-//             Vec2::Y * 15.0,
-//             Vec2::new(-15.0, -15.0),
-//             Vec2::new(15.0, -15.0),
-//         ))),
-//         Material2dHandle(gen_material_handle.clone()),
-//         MeshMaterial2d(gen_material_handle),
-//         Transform::from_translation(grid_to_world(generator_pos)),
-//         generator_pos,
-//     ));
-//
-//     // Power pole
-//     commands.spawn((
-//         Mesh2d(meshes.add(Circle::new(10.0))),
-//         MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
-//         Transform::from_translation(grid_to_world(pole_pos)),
-//         PowerPole,
-//         Name::new("PowerPole"),
-//         pole_pos,
-//     ));
-//
-//     // Light
-//     commands.spawn((
-//         Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
-//         Material2dHandle(light_material_handle.clone()),
-//         MeshMaterial2d(light_material_handle),
-//         Transform::from_translation(grid_to_world(light_pos)),
-//         Light { powered: false },
-//         Name::new("Light"),
-//         light_pos,
-//     ));
-// }
-
 pub fn tick_power(
     time: Res<Time>,
     mut generator: Query<(&mut Generator, &Material2dHandle), With<Generator>>,
