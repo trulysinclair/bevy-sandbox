@@ -17,7 +17,7 @@ fn setup(mut commands: Commands, tool: Res<BuildTool>) {
         BuildTool::Generator => "Generator".into(),
         BuildTool::PowerPole => "Power Pole".into(),
         BuildTool::Light => "Light".into(),
-        // Invitation for hijacking by mods, find better system
+        // Invitation for hijacking by mods, find a better system
         _ => "None".into(),
     };
 
