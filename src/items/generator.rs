@@ -17,7 +17,7 @@ pub struct Generator {
 
 impl Plugin for GeneratorPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, tick_power);
+        app.add_systems(Update, (tick_power, sync_power_source));
     }
 }
 
@@ -68,6 +68,14 @@ pub fn tick_power(
         // println!("Battery is full!");
         // println!("Delta: {:?}", time.delta());
         // }
+    }
+}
+
+pub fn sync_power_source(
+    mut generators: Query<(&Generator, &mut PowerSource), With<Generator>>,
+) {
+    for (generator, mut power_source) in generators.iter_mut() {
+        power_source.powered = generator.is_active;
     }
 }
 

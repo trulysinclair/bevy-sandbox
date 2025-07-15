@@ -1,4 +1,4 @@
-use crate::grid::GridPosition;
+use crate::grid::{grid_to_world, GridPosition};
 use bevy::prelude::*;
 use std::collections::HashSet;
 
@@ -6,7 +6,7 @@ pub struct WireSystemPlugin;
 
 impl Plugin for WireSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, power_propagation_system);
+        app.add_systems(Update, (power_propagation_system, wire_visual_system));
     }
 }
 
@@ -69,6 +69,9 @@ pub struct Wire {
     pub from: Entity,
     pub to: Entity,
 }
+
+#[derive(Component)]
+pub struct WireVisual;
 
 #[derive(Resource, Default)]
 pub struct WireState {
@@ -133,6 +136,40 @@ fn propagate_power_from(
                     propagate_power_from(target, wires, connection_points, powered_entities);
                 }
             }
+        }
+    }
+}
+
+fn wire_visual_system(
+    mut commands: Commands,
+    new_wires: Query<(Entity, &Wire), (With<Wire>, Without<WireVisual>)>,
+    positions: Query<&GridPosition>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (wire_entity, wire) in new_wires.iter() {
+        // Get positions of connected entities
+        if let (Ok(from_pos), Ok(to_pos)) = (positions.get(wire.from), positions.get(wire.to)) {
+            let from_world = grid_to_world(*from_pos);
+            let to_world = grid_to_world(*to_pos);
+            
+            // Calculate wire position and rotation
+            let wire_center = (from_world + to_world) / 2.0;
+            let direction = to_world - from_world;
+            let length = direction.length();
+            let angle = direction.y.atan2(direction.x);
+            
+            // Create wire visual
+            let wire_material = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.8, 0.0))); // Yellow/gold wire
+            let wire_mesh = meshes.add(Rectangle::new(length, 2.0)); // 2 pixel thick wire
+            
+            commands.entity(wire_entity).insert((
+                Mesh2d(wire_mesh),
+                MeshMaterial2d(wire_material),
+                Transform::from_translation(wire_center + Vec3::new(0.0, 0.0, 0.05))
+                    .with_rotation(Quat::from_rotation_z(angle)),
+                WireVisual,
+            ));
         }
     }
 }

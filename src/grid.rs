@@ -488,7 +488,7 @@ fn create_wire(
         .spawn((
             Wire { from, to },
             Name::new("Wire"),
-            // TODO: Add visual representation
+            // Visual representation will be added by wire_visual_system
         ))
         .id();
 
