@@ -13,22 +13,25 @@ impl Plugin for UiPlugin {
 }
 
 fn setup(mut commands: Commands, tool: Res<BuildTool>) {
-    let text: &str = match *tool {
-        BuildTool::Generator => "Generator".into(),
-        BuildTool::PowerPole => "Power Pole".into(),
-        BuildTool::Light => "Light".into(),
+    let tool_name: &str = match *tool {
+        BuildTool::Generator => "Generator",
+        BuildTool::PowerPole => "Power Pole",
+        BuildTool::Light => "Light",
+        BuildTool::Wire => "Wire",
         // Invitation for hijacking by mods, find a better system
-        _ => "None".into(),
+        _ => "None",
     };
 
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(100.0),
-            bottom: Val::Px(100.0),
-            ..default()
-        },
-        MainText,
-        Text::new(text),
-    ));
+    commands
+        .spawn((
+            Text::new("Tool: "),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(100.0),
+                bottom: Val::Px(100.0),
+                ..default()
+            },
+            MainText,
+        ))
+        .with_child((TextSpan::new(tool_name),));
 }
