@@ -1,4 +1,5 @@
-use crate::grid::Material2dHandle;
+use crate::grid;
+use crate::grid::{GridPosition, Material2dHandle};
 use bevy::color::palettes::basic::{GREEN, RED};
 use bevy::prelude::*;
 
@@ -67,4 +68,34 @@ pub fn tick_power(
         // println!("Delta: {:?}", time.delta());
         // }
     }
+}
+
+pub fn spawn_generator(
+    commands: &mut Commands,
+    pos: GridPosition,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
+    let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
+    commands
+        .spawn((
+            Name::new("Generator"),
+            Generator {
+                is_active: false,
+                fuel_amount: 5.0,
+                output: 0.0,
+                max_output: 20.0,
+                burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+            },
+            Mesh2d(meshes.add(Triangle2d::new(
+                Vec2::Y * 15.0,
+                Vec2::new(-15.0, -15.0),
+                Vec2::new(15.0, -15.0),
+            ))),
+            Material2dHandle(gen_material_handle.clone()),
+            MeshMaterial2d(gen_material_handle.clone()),
+            Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z), // Render above tile
+            pos,
+        ))
+        .id()
 }

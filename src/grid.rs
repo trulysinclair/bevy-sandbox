@@ -1,11 +1,9 @@
 use crate::build_tool::{BuildTool, TileContent};
-use crate::items::generator::Generator;
-use crate::items::light::Light;
-use crate::items::power_pole::PowerPole;
+use crate::items::{generator, light, power_pole};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
-use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, RED, YELLOW};
-use bevy::color::palettes::css::{BROWN, GREEN, GREY};
+use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, YELLOW};
+use bevy::color::palettes::css::GREEN;
 use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
 use bevy::prelude::*;
@@ -205,8 +203,12 @@ fn click_place_system(
 
             match *tool {
                 BuildTool::Generator => {
-                    let generator =
-                        spawn_generator(&mut commands, *tile_pos, meshes, &mut materials);
+                    let generator = generator::spawn_generator(
+                        &mut commands,
+                        *tile_pos,
+                        meshes,
+                        &mut materials,
+                    );
                     commands.entity(tile_entity).insert(TileContent::Generator);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(generator),
@@ -217,7 +219,12 @@ fn click_place_system(
                     }
                 }
                 BuildTool::PowerPole => {
-                    let pole = spawn_power_pole(&mut commands, *tile_pos, meshes, &mut materials);
+                    let pole = power_pole::spawn_power_pole(
+                        &mut commands,
+                        *tile_pos,
+                        meshes,
+                        &mut materials,
+                    );
                     commands.entity(tile_entity).insert(TileContent::PowerPole);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(pole),
@@ -227,7 +234,8 @@ fn click_place_system(
                     }
                 }
                 BuildTool::Light => {
-                    let light = spawn_light(&mut commands, *tile_pos, meshes, &mut materials);
+                    let light =
+                        light::spawn_light(&mut commands, *tile_pos, meshes, &mut materials);
                     commands.entity(tile_entity).insert(TileContent::Light);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(light),
@@ -256,73 +264,4 @@ fn click_place_system(
 
         break;
     }
-}
-
-fn spawn_generator(
-    commands: &mut Commands,
-    pos: GridPosition,
-    mut meshes: ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-) -> Entity {
-    let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
-    commands
-        .spawn((
-            Name::new("Generator"),
-            Generator {
-                is_active: false,
-                fuel_amount: 5.0,
-                output: 0.0,
-                max_output: 20.0,
-                burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
-            },
-            Mesh2d(meshes.add(Triangle2d::new(
-                Vec2::Y * 15.0,
-                Vec2::new(-15.0, -15.0),
-                Vec2::new(15.0, -15.0),
-            ))),
-            Material2dHandle(gen_material_handle.clone()),
-            MeshMaterial2d(gen_material_handle.clone()),
-            Transform::from_translation(grid_to_world(pos) + Vec3::Z), // Render above tile
-            pos,
-        ))
-        .id()
-}
-
-fn spawn_power_pole(
-    commands: &mut Commands,
-    pos: GridPosition,
-    mut meshes: ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-) -> Entity {
-    commands
-        .spawn((
-            Name::new("PowerPole"),
-            PowerPole,
-            Mesh2d(meshes.add(Circle::new(10.0))),
-            MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
-            Transform::from_translation(grid_to_world(pos) + Vec3::Z),
-            pos,
-        ))
-        .id()
-}
-
-fn spawn_light(
-    commands: &mut Commands,
-    pos: GridPosition,
-    mut meshes: ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-) -> Entity {
-    let light_material_handle = materials.add(ColorMaterial::from_color(GREY));
-
-    commands
-        .spawn((
-            Name::new("Light"),
-            Light { powered: false },
-            Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
-            Material2dHandle(light_material_handle.clone()),
-            MeshMaterial2d(light_material_handle.clone()),
-            Transform::from_translation(grid_to_world(pos) + Vec3::Z),
-            pos,
-        ))
-        .id()
 }

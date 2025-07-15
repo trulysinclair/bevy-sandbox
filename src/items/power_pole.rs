@@ -1,7 +1,9 @@
+use crate::grid;
 use crate::grid::{GridPosition, Material2dHandle};
 use crate::items::generator::Generator;
 use crate::items::light::Light;
 use bevy::color::palettes::basic::GRAY;
+use bevy::color::palettes::css::BROWN;
 use bevy::prelude::*;
 
 pub struct PowerPolePlugin;
@@ -67,4 +69,22 @@ pub fn power_propagation_system(
         // Reset for next tick
         light.powered = false;
     }
+}
+
+pub fn spawn_power_pole(
+    commands: &mut Commands,
+    pos: GridPosition,
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) -> Entity {
+    commands
+        .spawn((
+            Name::new("PowerPole"),
+            PowerPole,
+            Mesh2d(meshes.add(Circle::new(10.0))),
+            MeshMaterial2d(materials.add(ColorMaterial::from_color(BROWN))),
+            Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z),
+            pos,
+        ))
+        .id()
 }
