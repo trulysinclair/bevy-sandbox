@@ -1,5 +1,7 @@
 use crate::build_tool::{BuildTool, TileContent};
-use crate::generator::{Generator, Light, PowerPole, tick_power};
+use crate::items::generator::Generator;
+use crate::items::light::Light;
+use crate::items::power_pole::PowerPole;
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
 use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, RED, YELLOW};
@@ -7,7 +9,7 @@ use bevy::color::palettes::css::{BROWN, GREEN, GREY};
 use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
 use bevy::prelude::*;
-use bevy::sprite::{Material2d, MeshMaterial2d};
+use bevy::sprite::MeshMaterial2d;
 
 pub struct GridPlugin;
 
@@ -62,7 +64,10 @@ fn setup(
             };
 
             let cell_material_handle = materials.add(ColorMaterial::from_color(NEUTRAL_700));
-            let cell_mesh_handle = meshes.add(Rectangle::new(TILE_SIZE as f32 - 1.0, TILE_SIZE as f32 - 1.0));
+            let cell_mesh_handle = meshes.add(Rectangle::new(
+                TILE_SIZE as f32 - 1.0,
+                TILE_SIZE as f32 - 1.0,
+            ));
 
             // Spawn tile
             commands.spawn((
@@ -74,11 +79,11 @@ fn setup(
                 position,
                 Tile { content: None },
             ));
-            
+
             let border_material_handle = materials.add(ColorMaterial::from_color(BLACK));
             let tile_pos = grid_to_world(position);
             let half_tile = TILE_SIZE as f32 / 2.0;
-            
+
             // Create 4 border lines (top, bottom, left, right)
             // Top border
             commands.spawn((
@@ -86,21 +91,21 @@ fn setup(
                 MeshMaterial2d(border_material_handle.clone()),
                 Transform::from_translation(tile_pos + Vec3::new(0.0, half_tile, 0.1)),
             ));
-            
+
             // Bottom border
             commands.spawn((
                 Mesh2d(meshes.add(Rectangle::new(TILE_SIZE as f32, 1.0))),
                 MeshMaterial2d(border_material_handle.clone()),
                 Transform::from_translation(tile_pos + Vec3::new(0.0, -half_tile, 0.1)),
             ));
-            
+
             // Left border
             commands.spawn((
                 Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
                 MeshMaterial2d(border_material_handle.clone()),
                 Transform::from_translation(tile_pos + Vec3::new(-half_tile, 0.0, 0.1)),
             ));
-            
+
             // Right border
             commands.spawn((
                 Mesh2d(meshes.add(Rectangle::new(1.0, TILE_SIZE as f32))),
