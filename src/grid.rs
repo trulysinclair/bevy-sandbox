@@ -13,9 +13,9 @@ pub struct GridPlugin;
 
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (setup, setup_hover_borders))
-            .add_systems(Update, (click_place_system))
-            .add_systems(FixedUpdate, hover_mouse);
+        app.init_resource::<HoverState>()
+            .add_systems(Startup, (setup, setup_hover_borders))
+            .add_systems(Update, (click_place_system, hover_mouse));
     }
 }
 
@@ -43,6 +43,11 @@ struct HoverBorderEntities {
     bottom: Entity,
     left: Entity,
     right: Entity,
+}
+
+#[derive(Resource, Default)]
+struct HoverState {
+    last_hovered: Option<GridPosition>,
 }
 
 #[derive(Component)]
@@ -187,6 +192,7 @@ fn hover_mouse(
     camera: Query<(&Camera, &GlobalTransform)>,
     tiles: Query<&GridPosition, With<Hoverable>>,
     hover_entities: Res<HoverBorderEntities>,
+    mut hover_state: ResMut<HoverState>,
     mut transforms: Query<&mut Transform>,
     mut visibility: Query<&mut Visibility>,
 ) {
@@ -198,18 +204,21 @@ fn hover_mouse(
         return;
     };
     let Some(cursor_position) = window.cursor_position() else {
-        // Hide borders when cursor is not in window
-        if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
-            *vis = Visibility::Hidden;
-        }
-        if let Ok(mut vis) = visibility.get_mut(hover_entities.bottom) {
-            *vis = Visibility::Hidden;
-        }
-        if let Ok(mut vis) = visibility.get_mut(hover_entities.left) {
-            *vis = Visibility::Hidden;
-        }
-        if let Ok(mut vis) = visibility.get_mut(hover_entities.right) {
-            *vis = Visibility::Hidden;
+        // Hide borders when cursor is not in window only if we were previously showing something
+        if hover_state.last_hovered.is_some() {
+            hover_state.last_hovered = None;
+            if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
+                *vis = Visibility::Hidden;
+            }
+            if let Ok(mut vis) = visibility.get_mut(hover_entities.bottom) {
+                *vis = Visibility::Hidden;
+            }
+            if let Ok(mut vis) = visibility.get_mut(hover_entities.left) {
+                *vis = Visibility::Hidden;
+            }
+            if let Ok(mut vis) = visibility.get_mut(hover_entities.right) {
+                *vis = Visibility::Hidden;
+            }
         }
         return;
     };
@@ -225,10 +234,16 @@ fn hover_mouse(
         y: grid_y,
     };
 
+    // Early return if we're hovering the same tile as last frame
+    if hover_state.last_hovered == Some(hovered_tile) {
+        return;
+    }
+
     // Check if we're hovering over a valid tile
     let is_hovering_valid_tile = tiles.iter().any(|pos| *pos == hovered_tile);
 
     if is_hovering_valid_tile {
+        hover_state.last_hovered = Some(hovered_tile);
         let tile_pos = grid_to_world(hovered_tile);
         let half_tile = TILE_SIZE as f32 / 2.0;
 
@@ -262,6 +277,7 @@ fn hover_mouse(
         }
     } else {
         // Hide borders when not hovering over a valid tile
+        hover_state.last_hovered = None;
         if let Ok(mut vis) = visibility.get_mut(hover_entities.top) {
             *vis = Visibility::Hidden;
         }
