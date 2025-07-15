@@ -443,16 +443,21 @@ fn handle_wire_placement(
         // Second click - try to create wire
         if selected != item_entity {
             if can_connect(selected, item_entity, connection_points) {
-                // For now, we'll skip position validation since we need to store positions
                 create_wire(selected, item_entity, connection_points, commands, materials);
             }
         }
+        // Clear selection and preview
         wire_state.selected_connection = None;
+        wire_state.selected_position = None;
+        if let Some(preview_entity) = wire_state.preview_entity.take() {
+            commands.entity(preview_entity).despawn();
+        }
     } else {
         // First click - select connection point
         if let Ok(connection_point) = connection_points.get(item_entity) {
             if connection_point.can_connect() {
                 wire_state.selected_connection = Some(item_entity);
+                wire_state.selected_position = Some(grid_to_world(pos));
                 println!("Selected connection point at {:?}", pos);
             }
         }

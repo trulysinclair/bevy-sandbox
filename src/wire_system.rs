@@ -1,3 +1,4 @@
+use crate::build_tool::BuildTool;
 use crate::grid::{grid_to_world, GridPosition};
 use bevy::prelude::*;
 use std::collections::HashSet;
@@ -6,7 +7,7 @@ pub struct WireSystemPlugin;
 
 impl Plugin for WireSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (power_propagation_system, wire_visual_system));
+        app.add_systems(Update, (power_propagation_system, wire_visual_system, wire_preview_system, clear_preview_on_tool_change));
     }
 }
 
@@ -73,9 +74,14 @@ pub struct Wire {
 #[derive(Component)]
 pub struct WireVisual;
 
+#[derive(Component)]
+pub struct WirePreview;
+
 #[derive(Resource, Default)]
 pub struct WireState {
     pub selected_connection: Option<Entity>,
+    pub selected_position: Option<Vec3>,
+    pub preview_entity: Option<Entity>,
 }
 
 fn power_propagation_system(
@@ -171,5 +177,90 @@ fn wire_visual_system(
                 WireVisual,
             ));
         }
+    }
+}
+
+fn wire_preview_system(
+    mut commands: Commands,
+    mut wire_state: ResMut<WireState>,
+    windows: Query<&Window>,
+    camera: Query<(&Camera, &GlobalTransform)>,
+    positions: Query<&GridPosition>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut transforms: Query<&mut Transform>,
+    preview_query: Query<Entity, With<WirePreview>>,
+) {
+    let Ok((camera, camera_transform)) = camera.single() else {
+        return;
+    };
+
+    let Ok(window) = windows.single() else {
+        return;
+    };
+
+    // If we have a selected connection, show preview
+    if let Some(selected_entity) = wire_state.selected_connection {
+        if let Some(cursor_pos) = window.cursor_position() {
+            let world_pos = camera
+                .viewport_to_world_2d(camera_transform, cursor_pos)
+                .unwrap_or(Vec2::ZERO);
+
+            if let Ok(selected_grid_pos) = positions.get(selected_entity) {
+                let selected_world_pos = grid_to_world(*selected_grid_pos);
+                let direction = Vec2::new(world_pos.x, world_pos.y) - Vec2::new(selected_world_pos.x, selected_world_pos.y);
+                
+                // Limit to 500px
+                let limited_direction = if direction.length() > 500.0 {
+                    direction.normalize() * 500.0
+                } else {
+                    direction
+                };
+                
+                let end_pos = Vec2::new(selected_world_pos.x, selected_world_pos.y) + limited_direction;
+                let wire_center = (Vec2::new(selected_world_pos.x, selected_world_pos.y) + end_pos) / 2.0;
+                let length = limited_direction.length();
+                let angle = limited_direction.y.atan2(limited_direction.x);
+
+                // Always recreate the preview wire with correct length
+                if let Some(preview_entity) = wire_state.preview_entity.take() {
+                    commands.entity(preview_entity).despawn();
+                }
+                
+                // Create new preview with correct length
+                let preview_material = materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5))); // Semi-transparent white
+                let preview_mesh = meshes.add(Rectangle::new(length, 1.5)); // Slightly thinner than real wire
+                
+                let preview_entity = commands.spawn((
+                    Mesh2d(preview_mesh),
+                    MeshMaterial2d(preview_material),
+                    Transform::from_translation(wire_center.extend(0.06))
+                        .with_rotation(Quat::from_rotation_z(angle)),
+                    WirePreview,
+                )).id();
+                
+                wire_state.preview_entity = Some(preview_entity);
+            }
+        }
+    } else {
+        // No selection, remove preview if it exists
+        if let Some(preview_entity) = wire_state.preview_entity.take() {
+            commands.entity(preview_entity).despawn();
+        }
+    }
+}
+
+fn clear_preview_on_tool_change(
+    mut commands: Commands,
+    mut wire_state: ResMut<WireState>,
+    tool: Res<BuildTool>,
+) {
+    // Clear preview if we're not using the wire tool
+    if *tool != BuildTool::Wire {
+        if let Some(preview_entity) = wire_state.preview_entity.take() {
+            commands.entity(preview_entity).despawn();
+        }
+        wire_state.selected_connection = None;
+        wire_state.selected_position = None;
     }
 }
