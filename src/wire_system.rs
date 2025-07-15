@@ -7,7 +7,7 @@ pub struct WireSystemPlugin;
 
 impl Plugin for WireSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (power_propagation_system, wire_visual_system, wire_preview_system, clear_preview_on_tool_change));
+        app.add_systems(Update, (power_propagation_system, wire_visual_system, wire_preview_system, cleanup_orphaned_wires));
     }
 }
 
@@ -188,9 +188,23 @@ fn wire_preview_system(
     positions: Query<&GridPosition>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut transforms: Query<&mut Transform>,
-    preview_query: Query<Entity, With<WirePreview>>,
+    build_tool: Res<BuildTool>,
+    existing_previews: Query<Entity, With<WirePreview>>,
+    all_entities: Query<Entity>,
 ) {
+    // Clean up any existing previews first - but validate they exist
+    for preview_entity in existing_previews.iter() {
+        if all_entities.get(preview_entity).is_ok() {
+            commands.entity(preview_entity).despawn();
+        }
+    }
+    wire_state.preview_entity = None;
+
+    // Only show preview if we're using the wire tool
+    if *build_tool != BuildTool::Wire {
+        return;
+    }
+
     let Ok((camera, camera_transform)) = camera.single() else {
         return;
     };
@@ -201,6 +215,14 @@ fn wire_preview_system(
 
     // If we have a selected connection, show preview
     if let Some(selected_entity) = wire_state.selected_connection {
+        // Validate that the selected entity still exists
+        if positions.get(selected_entity).is_err() {
+            // Selected entity no longer exists, clear the selection
+            wire_state.selected_connection = None;
+            wire_state.selected_position = None;
+            return;
+        }
+
         if let Some(cursor_pos) = window.cursor_position() {
             let world_pos = camera
                 .viewport_to_world_2d(camera_transform, cursor_pos)
@@ -222,11 +244,6 @@ fn wire_preview_system(
                 let length = limited_direction.length();
                 let angle = limited_direction.y.atan2(limited_direction.x);
 
-                // Always recreate the preview wire with correct length
-                if let Some(preview_entity) = wire_state.preview_entity.take() {
-                    commands.entity(preview_entity).despawn();
-                }
-                
                 // Create new preview with correct length
                 let preview_material = materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5))); // Semi-transparent white
                 let preview_mesh = meshes.add(Rectangle::new(length, 1.5)); // Slightly thinner than real wire
@@ -242,25 +259,38 @@ fn wire_preview_system(
                 wire_state.preview_entity = Some(preview_entity);
             }
         }
-    } else {
-        // No selection, remove preview if it exists
-        if let Some(preview_entity) = wire_state.preview_entity.take() {
-            commands.entity(preview_entity).despawn();
-        }
     }
 }
 
-fn clear_preview_on_tool_change(
+fn cleanup_orphaned_wires(
     mut commands: Commands,
-    mut wire_state: ResMut<WireState>,
-    tool: Res<BuildTool>,
+    wires: Query<(Entity, &Wire)>,
+    mut connection_points: Query<&mut ConnectionPoint>,
+    existing_entities: Query<Entity>,
 ) {
-    // Clear preview if we're not using the wire tool
-    if *tool != BuildTool::Wire {
-        if let Some(preview_entity) = wire_state.preview_entity.take() {
-            commands.entity(preview_entity).despawn();
+    for (wire_entity, wire) in wires.iter() {
+        let from_exists = existing_entities.get(wire.from).is_ok();
+        let to_exists = existing_entities.get(wire.to).is_ok();
+        
+        // If either endpoint is missing, clean up the wire
+        if !from_exists || !to_exists {
+            // Remove wire reference from the existing endpoint (if any)
+            if from_exists {
+                if let Ok(mut connection_point) = connection_points.get_mut(wire.from) {
+                    connection_point.remove_connection(wire_entity);
+                }
+            }
+            if to_exists {
+                if let Ok(mut connection_point) = connection_points.get_mut(wire.to) {
+                    connection_point.remove_connection(wire_entity);
+                }
+            }
+            
+            // Safely despawn the orphaned wire
+            if existing_entities.get(wire_entity).is_ok() {
+                commands.entity(wire_entity).despawn();
+                println!("Cleaned up orphaned wire: {:?}", wire_entity);
+            }
         }
-        wire_state.selected_connection = None;
-        wire_state.selected_position = None;
     }
 }
