@@ -77,6 +77,8 @@ pub fn spawn_generator(
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) -> Entity {
     let gen_material_handle = materials.add(ColorMaterial::from_color(RED));
+    let triangle_size = 5.0;
+
     commands
         .spawn((
             Name::new("Generator"),
@@ -88,9 +90,9 @@ pub fn spawn_generator(
                 burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
             },
             Mesh2d(meshes.add(Triangle2d::new(
-                Vec2::Y * 15.0,
-                Vec2::new(-15.0, -15.0),
-                Vec2::new(15.0, -15.0),
+                Vec2::Y * triangle_size,
+                Vec2::new(-triangle_size, -triangle_size),
+                Vec2::new(triangle_size, -triangle_size),
             ))),
             Material2dHandle(gen_material_handle.clone()),
             MeshMaterial2d(gen_material_handle.clone()),

@@ -2,8 +2,7 @@ use crate::build_tool::{BuildTool, TileContent};
 use crate::items::{generator, light, power_pole};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
-use bevy::color::palettes::basic::{BLACK, BLUE, GRAY, WHITE};
-use bevy::color::palettes::css::GREEN;
+use bevy::color::palettes::basic::{BLACK, WHITE};
 use bevy::color::palettes::tailwind::NEUTRAL_700;
 use bevy::math::Vec3;
 use bevy::prelude::*;
@@ -337,8 +336,6 @@ fn click_place_system(
         }
 
         if buttons.just_pressed(MouseButton::Right) && existing.is_none() {
-            println!("Placing tile at {:?}", tile_pos);
-
             match *tool {
                 BuildTool::Generator => {
                     let generator = generator::spawn_generator(
@@ -347,14 +344,11 @@ fn click_place_system(
                         meshes,
                         &mut materials,
                     );
+
                     commands.entity(tile_entity).insert(TileContent::Generator);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(generator),
                     });
-
-                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
-                        mat.color = Color::from(GREEN);
-                    }
                 }
                 BuildTool::PowerPole => {
                     let pole = power_pole::spawn_power_pole(
@@ -363,24 +357,20 @@ fn click_place_system(
                         meshes,
                         &mut materials,
                     );
+
                     commands.entity(tile_entity).insert(TileContent::PowerPole);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(pole),
                     });
-                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
-                        mat.color = Color::from(BLUE);
-                    }
                 }
                 BuildTool::Light => {
                     let light =
                         light::spawn_light(&mut commands, *tile_pos, meshes, &mut materials);
+
                     commands.entity(tile_entity).insert(TileContent::Light);
                     commands.entity(tile_entity).insert(Tile {
                         content: Some(light),
                     });
-                    if let Some(mat) = materials.get_mut(&mat_handle.0) {
-                        mat.color = Color::WHITE;
-                    }
                 }
             };
         }
@@ -394,10 +384,6 @@ fn click_place_system(
                 .entity(tile_entity)
                 .remove::<TileContent>()
                 .insert(Tile { content: None });
-
-            if let Some(mat) = materials.get_mut(&mat_handle.0) {
-                mat.color = Color::from(GRAY);
-            }
         }
 
         break;
