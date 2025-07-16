@@ -6,20 +6,19 @@ use bevy::color::palettes::css::GREY;
 use bevy::prelude::*;
 
 #[derive(Component)]
-pub struct Light {
-    pub(crate) powered: bool,
-}
+pub struct Light;
 
 pub struct LightPlugin;
 
 impl Plugin for LightPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
+        app
+            // .add_systems(Startup, setup)
             .add_systems(Update, update_light_visuals);
     }
 }
 
-fn setup(mut commands: Commands) {}
+// fn setup(mut commands: Commands) {}
 
 fn update_light_visuals(
     lights: Query<(&PowerConsumer, &Material2dHandle), With<Light>>,
@@ -48,14 +47,15 @@ pub fn spawn_light(
     commands
         .spawn((
             Name::new("Light"),
-            Light { powered: false },
+            Light,
             Mesh2d(meshes.add(Rectangle::new(light_size, light_size))),
             Material2dHandle(light_material_handle.clone()),
             MeshMaterial2d(light_material_handle.clone()),
             Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z),
             pos,
-            ConnectionPoint::new(1), // Single connection point
-            PowerConsumer::default(), // Lights are power consumers
+            // Single connection point
+            ConnectionPoint::new(1),
+            PowerConsumer::default(),
         ))
         .id()
 }

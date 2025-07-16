@@ -18,8 +18,6 @@ fn setup(mut commands: Commands, tool: Res<BuildTool>) {
         BuildTool::PowerPole => "Power Pole",
         BuildTool::Light => "Light",
         BuildTool::Wire => "Wire",
-        // Invitation for hijacking by mods, find a better system
-        _ => "None",
     };
 
     commands

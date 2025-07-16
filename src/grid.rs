@@ -16,7 +16,14 @@ impl Plugin for GridPlugin {
         app.init_resource::<HoverState>()
             .init_resource::<WireState>()
             .add_systems(Startup, (setup, setup_hover_borders))
-            .add_systems(Update, (click_place_system, hover_mouse, process_pending_wire_connections));
+            .add_systems(
+                Update,
+                (
+                    click_place_system,
+                    hover_mouse,
+                    process_pending_wire_connections,
+                ),
+            );
     }
 }
 
@@ -78,8 +85,8 @@ fn setup(
     let tiles_per_axis = GRID_SIZE / SPACING;
     let tile_half = tiles_per_axis / 2;
 
-    for x in (0..GRID_SIZE) {
-        for y in (0..GRID_SIZE) {
+    for x in 0..GRID_SIZE {
+        for y in 0..GRID_SIZE {
             let position = GridPosition {
                 x: x - (tile_half * 2),
                 y: y - (tile_half * 2),
@@ -341,7 +348,7 @@ fn click_place_system(
         y: grid_y,
     };
 
-    for (tile_entity, tile_pos, mat_handle, tile, existing) in tiles.iter_mut() {
+    for (tile_entity, tile_pos, _mat_handle, tile, existing) in tiles.iter_mut() {
         if *tile_pos != clicked_pos {
             continue;
         }
@@ -358,7 +365,6 @@ fn click_place_system(
                             &mut wire_state,
                             &mut connection_points,
                             &mut commands,
-                            &mut materials,
                         );
                     } else if wire_state.selected_connection.is_some() && existing.is_none() {
                         // Empty tile and we have a selected connection - spawn pole and connect
@@ -366,7 +372,6 @@ fn click_place_system(
                             tile_entity,
                             *tile_pos,
                             &mut wire_state,
-                            &mut connection_points,
                             &mut commands,
                             meshes,
                             &mut materials,
@@ -455,13 +460,12 @@ fn handle_wire_placement(
     wire_state: &mut ResMut<WireState>,
     connection_points: &mut Query<&mut ConnectionPoint>,
     commands: &mut Commands,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
     if let Some(selected) = wire_state.selected_connection {
         // Second click - try to create wire
         if selected != item_entity {
             if can_connect(selected, item_entity, connection_points) {
-                create_wire(selected, item_entity, connection_points, commands, materials);
+                create_wire(selected, item_entity, connection_points, commands);
             }
         }
         // Clear selection and preview
@@ -492,25 +496,21 @@ fn can_connect(
     }
 }
 
-fn is_within_range(from: GridPosition, to: GridPosition, max_range: i32) -> bool {
-    let dx = (to.x - from.x).abs();
-    let dy = (to.y - from.y).abs();
-    dx <= max_range && dy <= max_range
-}
-
 fn create_wire(
     from: Entity,
     to: Entity,
     connection_points: &mut Query<&mut ConnectionPoint>,
     commands: &mut Commands,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
     // Validate that both entities exist and have connection points
     let from_valid = connection_points.get(from).is_ok();
     let to_valid = connection_points.get(to).is_ok();
-    
+
     if !from_valid || !to_valid {
-        println!("Cannot create wire: invalid entities (from: {}, to: {})", from_valid, to_valid);
+        println!(
+            "Cannot create wire: invalid entities (from: {}, to: {})",
+            from_valid, to_valid
+        );
         return;
     }
 
@@ -537,45 +537,41 @@ fn handle_wire_to_empty_tile(
     tile_entity: Entity,
     pos: GridPosition,
     wire_state: &mut ResMut<WireState>,
-    connection_points: &mut Query<&mut ConnectionPoint>,
     commands: &mut Commands,
     meshes: ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
     if let Some(selected_entity) = wire_state.selected_connection {
         // Spawn a power pole at the empty tile
-        let pole_entity = power_pole::spawn_power_pole(
-            commands,
-            pos,
-            meshes,
-            materials,
-        );
-        
+        let pole_entity = power_pole::spawn_power_pole(commands, pos, meshes, materials);
+
         // Update the tile to contain the pole
         commands.entity(tile_entity).insert(TileContent::PowerPole);
         commands.entity(tile_entity).insert(Tile {
             content: Some(pole_entity),
         });
-        
+
         // Schedule wire creation for next frame when pole components are ready
         commands.spawn(PendingWireConnection {
             from: selected_entity,
             to: pole_entity,
         });
-        
+
         // Clear selection and preview
         wire_state.selected_connection = None;
         wire_state.selected_position = None;
         wire_state.preview_entity = None; // Just clear the reference, preview system will handle cleanup
-        
-        println!("Spawned power pole and scheduled wire connection at {:?}", pos);
+
+        println!(
+            "Spawned power pole and scheduled wire connection at {:?}",
+            pos
+        );
     }
 }
 
 fn process_pending_wire_connections(
     mut commands: Commands,
     mut connection_points: Query<&mut ConnectionPoint>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     pending_connections: Query<(Entity, &PendingWireConnection)>,
     existing_entities: Query<Entity>,
 ) {
@@ -583,24 +579,36 @@ fn process_pending_wire_connections(
         // Check if both entities still exist
         let from_exists = existing_entities.get(pending.from).is_ok();
         let to_exists = existing_entities.get(pending.to).is_ok();
-        
+
         if !from_exists || !to_exists {
             // One or both entities no longer exist, cancel the pending connection
-            println!("Cancelling pending wire connection - entity no longer exists (from: {}, to: {})", from_exists, to_exists);
+            println!(
+                "Cancelling pending wire connection - entity no longer exists (from: {}, to: {})",
+                from_exists, to_exists
+            );
             commands.entity(pending_entity).despawn();
             continue;
         }
-        
+
         // Check if both entities now have ConnectionPoint components
-        if connection_points.get(pending.from).is_ok() && connection_points.get(pending.to).is_ok() {
+        if connection_points.get(pending.from).is_ok() && connection_points.get(pending.to).is_ok()
+        {
             // Create the wire connection
             if can_connect(pending.from, pending.to, &mut connection_points) {
-                create_wire(pending.from, pending.to, &mut connection_points, &mut commands, &mut materials);
-                println!("Successfully created deferred wire connection between {:?} and {:?}", pending.from, pending.to);
+                create_wire(
+                    pending.from,
+                    pending.to,
+                    &mut connection_points,
+                    &mut commands,
+                );
+                println!(
+                    "Successfully created deferred wire connection between {:?} and {:?}",
+                    pending.from, pending.to
+                );
             } else {
                 println!("Failed to connect - connection points at capacity");
             }
-            
+
             // Remove the pending connection
             commands.entity(pending_entity).despawn();
         }

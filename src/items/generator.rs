@@ -10,7 +10,7 @@ pub struct GeneratorPlugin;
 pub struct Generator {
     pub(crate) fuel_amount: f32,
     pub(crate) output: f32,
-    pub(crate) max_output: f32,
+    // pub(crate) max_output: f32,
     pub(crate) is_active: bool,
     pub(crate) burn_timer: Timer,
 }
@@ -28,16 +28,16 @@ pub fn tick_power(
 ) {
     for (mut generator, material_handle) in generator.iter_mut() {
         let has_fuel = generator.fuel_amount > 0.0;
-        let can_output = generator.output < generator.max_output;
+        // let can_output = generator.output < generator.max_output;
         let out_of_fuel = generator.fuel_amount == 0.0;
 
         // if (can_output) {
-        if (has_fuel) {
+        if has_fuel {
             generator.burn_timer.tick(time.delta());
 
             generator.is_active = true;
 
-            if (generator.burn_timer.finished()) {
+            if generator.burn_timer.finished() {
                 generator.fuel_amount -= 1.0;
                 println!("Fuel left: {}", generator.fuel_amount);
             }
@@ -49,7 +49,7 @@ pub fn tick_power(
             }
         }
 
-        if (out_of_fuel) {
+        if out_of_fuel {
             generator.is_active = false;
 
             if let Some(material) = materials.get_mut(&material_handle.0) {
@@ -71,9 +71,7 @@ pub fn tick_power(
     }
 }
 
-pub fn sync_power_source(
-    mut generators: Query<(&Generator, &mut PowerSource), With<Generator>>,
-) {
+pub fn sync_power_source(mut generators: Query<(&Generator, &mut PowerSource), With<Generator>>) {
     for (generator, mut power_source) in generators.iter_mut() {
         power_source.powered = generator.is_active;
     }
@@ -95,7 +93,7 @@ pub fn spawn_generator(
                 is_active: false,
                 fuel_amount: 5.0,
                 output: 0.0,
-                max_output: 20.0,
+                // max_output: 20.0,
                 burn_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
             },
             Mesh2d(meshes.add(Triangle2d::new(

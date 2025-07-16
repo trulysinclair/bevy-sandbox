@@ -11,12 +11,10 @@ pub struct ItemsPlugin;
 
 impl Plugin for ItemsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup).add_plugins((
-            GeneratorPlugin,
-            PowerPolePlugin,
-            LightPlugin,
-        ));
+        app
+            // .add_systems(Startup, setup)
+            .add_plugins((GeneratorPlugin, PowerPolePlugin, LightPlugin));
     }
 }
 
-fn setup(mut commands: Commands) {}
+// fn setup(mut commands: Commands) {}

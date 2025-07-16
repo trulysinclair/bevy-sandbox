@@ -1,13 +1,22 @@
 use crate::build_tool::BuildTool;
 use crate::grid::{grid_to_world, GridPosition};
 use bevy::prelude::*;
+use bevy::sprite::MeshMaterial2d;
 use std::collections::HashSet;
 
 pub struct WireSystemPlugin;
 
 impl Plugin for WireSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (power_propagation_system, wire_visual_system, wire_preview_system, cleanup_orphaned_wires));
+        app.add_systems(
+            Update,
+            (
+                power_propagation_system,
+                wire_visual_system,
+                wire_preview_system,
+                cleanup_orphaned_wires,
+            ),
+        );
     }
 }
 
@@ -98,20 +107,23 @@ fn power_propagation_system(
     // Find all powered sources
     let powered_sources: Vec<Entity> = sources
         .iter()
-        .filter_map(|(entity, source)| {
-            if source.powered {
-                Some(entity)
-            } else {
-                None
-            }
-        })
+        .filter_map(
+            |(entity, source)| {
+                if source.powered { Some(entity) } else { None }
+            },
+        )
         .collect();
 
     // Propagate power through wire network
     let mut powered_entities = HashSet::new();
     for source_entity in powered_sources {
         powered_entities.insert(source_entity);
-        propagate_power_from(source_entity, &wires, &connection_points, &mut powered_entities);
+        propagate_power_from(
+            source_entity,
+            &wires,
+            &connection_points,
+            &mut powered_entities,
+        );
     }
 
     // Update consumer power state
@@ -158,17 +170,18 @@ fn wire_visual_system(
         if let (Ok(from_pos), Ok(to_pos)) = (positions.get(wire.from), positions.get(wire.to)) {
             let from_world = grid_to_world(*from_pos);
             let to_world = grid_to_world(*to_pos);
-            
+
             // Calculate wire position and rotation
             let wire_center = (from_world + to_world) / 2.0;
             let direction = to_world - from_world;
             let length = direction.length();
             let angle = direction.y.atan2(direction.x);
-            
+
             // Create wire visual
-            let wire_material = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.8, 0.0))); // Yellow/gold wire
+            let wire_material =
+                materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.8, 0.0))); // Yellow/gold wire
             let wire_mesh = meshes.add(Rectangle::new(length, 2.0)); // 2 pixel thick wire
-            
+
             commands.entity(wire_entity).insert((
                 Mesh2d(wire_mesh),
                 MeshMaterial2d(wire_material),
@@ -230,32 +243,38 @@ fn wire_preview_system(
 
             if let Ok(selected_grid_pos) = positions.get(selected_entity) {
                 let selected_world_pos = grid_to_world(*selected_grid_pos);
-                let direction = Vec2::new(world_pos.x, world_pos.y) - Vec2::new(selected_world_pos.x, selected_world_pos.y);
-                
+                let direction = Vec2::new(world_pos.x, world_pos.y)
+                    - Vec2::new(selected_world_pos.x, selected_world_pos.y);
+
                 // Limit to 500px
                 let limited_direction = if direction.length() > 500.0 {
                     direction.normalize() * 500.0
                 } else {
                     direction
                 };
-                
-                let end_pos = Vec2::new(selected_world_pos.x, selected_world_pos.y) + limited_direction;
-                let wire_center = (Vec2::new(selected_world_pos.x, selected_world_pos.y) + end_pos) / 2.0;
+
+                let end_pos =
+                    Vec2::new(selected_world_pos.x, selected_world_pos.y) + limited_direction;
+                let wire_center =
+                    (Vec2::new(selected_world_pos.x, selected_world_pos.y) + end_pos) / 2.0;
                 let length = limited_direction.length();
                 let angle = limited_direction.y.atan2(limited_direction.x);
 
                 // Create new preview with correct length
-                let preview_material = materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5))); // Semi-transparent white
+                let preview_material =
+                    materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5))); // Semi-transparent white
                 let preview_mesh = meshes.add(Rectangle::new(length, 1.5)); // Slightly thinner than real wire
-                
-                let preview_entity = commands.spawn((
-                    Mesh2d(preview_mesh),
-                    MeshMaterial2d(preview_material),
-                    Transform::from_translation(wire_center.extend(0.06))
-                        .with_rotation(Quat::from_rotation_z(angle)),
-                    WirePreview,
-                )).id();
-                
+
+                let preview_entity = commands
+                    .spawn((
+                        Mesh2d(preview_mesh),
+                        MeshMaterial2d(preview_material),
+                        Transform::from_translation(wire_center.extend(0.06))
+                            .with_rotation(Quat::from_rotation_z(angle)),
+                        WirePreview,
+                    ))
+                    .id();
+
                 wire_state.preview_entity = Some(preview_entity);
             }
         }
@@ -271,7 +290,7 @@ fn cleanup_orphaned_wires(
     for (wire_entity, wire) in wires.iter() {
         let from_exists = existing_entities.get(wire.from).is_ok();
         let to_exists = existing_entities.get(wire.to).is_ok();
-        
+
         // If either endpoint is missing, clean up the wire
         if !from_exists || !to_exists {
             // Remove wire reference from the existing endpoint (if any)
@@ -285,7 +304,7 @@ fn cleanup_orphaned_wires(
                     connection_point.remove_connection(wire_entity);
                 }
             }
-            
+
             // Safely despawn the orphaned wire
             if existing_entities.get(wire_entity).is_ok() {
                 commands.entity(wire_entity).despawn();

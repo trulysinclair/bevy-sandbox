@@ -20,7 +20,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((ItemsPlugin))
+        .add_plugins(ItemsPlugin)
         .add_plugins((GridPlugin, BuildToolPlugin, WireSystemPlugin))
         .add_plugins(UiPlugin)
         .add_systems(Startup, setup)
