@@ -1,15 +1,16 @@
-mod build_tool;
-mod grid;
 mod items;
+mod power;
+mod tools;
 mod ui;
 mod wire_system;
+mod world;
 
-use crate::build_tool::BuildToolPlugin;
-use crate::grid::GridPlugin;
 use crate::items::ItemsPlugin;
 use crate::ui::UiPlugin;
 use crate::wire_system::WireSystemPlugin;
 use bevy::prelude::*;
+use tools::build_tool::BuildToolPlugin;
+use world::grid::GridPlugin;
 
 fn main() {
     App::new()

@@ -1,5 +1,5 @@
-use crate::build_tool::{BuildTool, TileContent};
 use crate::items::{generator, light, power_pole};
+use crate::tools::build_tool::{BuildTool, TileContent};
 use crate::wire_system::{ConnectionPoint, Wire, WireState};
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;

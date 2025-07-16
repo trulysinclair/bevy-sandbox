@@ -1,6 +1,7 @@
-use crate::grid;
-use crate::grid::{GridPosition, Material2dHandle};
-use crate::wire_system::{ConnectionPoint, PowerSource};
+use crate::power::power_source::PowerSource;
+use crate::wire_system::ConnectionPoint;
+use crate::world::grid;
+use crate::world::grid::{GridPosition, Material2dHandle};
 use bevy::color::palettes::basic::{GREEN, RED};
 use bevy::prelude::*;
 

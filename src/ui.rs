@@ -1,4 +1,4 @@
-use crate::build_tool::BuildTool;
+use crate::tools::build_tool::BuildTool;
 use bevy::prelude::*;
 
 pub struct UiPlugin;

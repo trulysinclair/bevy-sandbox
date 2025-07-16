@@ -1,6 +1,6 @@
-use crate::grid;
-use crate::grid::GridPosition;
 use crate::wire_system::ConnectionPoint;
+use crate::world::grid;
+use crate::world::grid::GridPosition;
 use bevy::color::palettes::css::BROWN;
 use bevy::prelude::*;
 
