@@ -8,12 +8,13 @@ pub struct TemplatePlugin;
 
 impl Plugin for TemplatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
+        app
+            // .add_systems(Startup, setup)
             .add_systems(Update, power_propagation_system);
     }
 }
 
-fn setup(mut commands: Commands) {}
+// fn setup(mut commands: Commands) {}
 
 fn power_propagation_system(
     mut consumers: Query<(Entity, &mut PowerConsumer)>,
