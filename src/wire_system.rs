@@ -91,8 +91,10 @@ fn wire_visual_system(
 
             // Create wire visual
             let wire_material =
-                materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.8, 0.0))); // Yellow/gold wire
-            let wire_mesh = meshes.add(Rectangle::new(length, 2.0)); // 2 pixel thick wire
+            // Yellow/gold wire
+                materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.8, 0.0)));
+            // 2 pixel thick wire
+            let wire_mesh = meshes.add(Rectangle::new(length, 2.0));
 
             commands.entity(wire_entity).insert((
                 Mesh2d(wire_mesh),
@@ -174,8 +176,10 @@ fn wire_preview_system(
 
                 // Create new preview with correct length
                 let preview_material =
-                    materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5))); // Semi-transparent white
-                let preview_mesh = meshes.add(Rectangle::new(length, 1.5)); // Slightly thinner than real wire
+                    // Semi-transparent white
+                    materials.add(ColorMaterial::from_color(Color::srgba(1.0, 1.0, 1.0, 0.5)));
+                // Slightly thinner than real wire
+                let preview_mesh = meshes.add(Rectangle::new(length, 1.5));
 
                 let preview_entity = commands
                     .spawn((

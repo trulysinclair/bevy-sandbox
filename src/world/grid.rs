@@ -471,7 +471,8 @@ fn handle_wire_placement(
         // Clear selection and preview
         wire_state.selected_connection = None;
         wire_state.selected_position = None;
-        wire_state.preview_entity = None; // Just clear the reference, preview system will handle cleanup
+        // Just clear the reference, preview system will handle cleanup
+        wire_state.preview_entity = None;
     } else {
         // First click - select connection point
         if let Ok(connection_point) = connection_points.get(item_entity) {
@@ -560,7 +561,8 @@ fn handle_wire_to_empty_tile(
         // Clear selection and preview
         wire_state.selected_connection = None;
         wire_state.selected_position = None;
-        wire_state.preview_entity = None; // Just clear the reference, preview system will handle cleanup
+        // Just clear the reference, preview system will handle cleanup
+        wire_state.preview_entity = None;
 
         println!(
             "Spawned power pole and scheduled wire connection at {:?}",

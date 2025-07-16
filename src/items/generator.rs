@@ -104,10 +104,13 @@ pub fn spawn_generator(
             ))),
             Material2dHandle(gen_material_handle.clone()),
             MeshMaterial2d(gen_material_handle.clone()),
-            Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z), // Render above tile
+            // Render above tile
+            Transform::from_translation(grid::grid_to_world(pos) + Vec3::Z),
             pos,
-            ConnectionPoint::new(1), // Single connection point
-            PowerSource::default(),  // Generators are power sources
+            // Single connection point
+            ConnectionPoint::new(1),
+            // Generators are power sources
+            PowerSource::default(),
         ))
         .id()
 }
