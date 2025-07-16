@@ -4,9 +4,9 @@ use crate::wire_system::{ConnectionPoint, Wire};
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-pub struct TemplatePlugin;
+pub struct PowerPlugin;
 
-impl Plugin for TemplatePlugin {
+impl Plugin for PowerPlugin {
     fn build(&self, app: &mut App) {
         app
             // .add_systems(Startup, setup)
